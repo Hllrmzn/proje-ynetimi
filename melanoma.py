@@ -27,7 +27,7 @@ class SEResnext50_32x4d(nn.Module):
         if pretrained is not None:
             self.base_model.load_state_dict(
                 torch.load(
-                    "../input/pretrained-model-weights-pytorch/se_resnext50_32x4d-a260b3a4.pth"
+                    "../input/pretrained-model-weights-pytorch/se_resnext50_32x4d-a260b3a4.pth"/// resnext50 proje kaggle üzerinden çalıştırıldığı için path bu şekil
                 )
             )
 

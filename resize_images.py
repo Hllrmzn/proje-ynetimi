@@ -3,11 +3,11 @@ import os
 import os.path
 from PIL import Image
 
-f = r'C:/Users/Halil Ramazan/Desktop/mela/jpeg/test'
+f = r'C:/Users/Halil Ramazan/Desktop/mela/jpeg/test'// dosya yolu
 for file in os.listdir(f):
     f_img = f+"/"+file
     img = Image.open(f_img)
-    img = img.resize((224,224))
+    img = img.resize((224,224))// istenilen boyut
     img.save(f_img)
 f = r'C:/Users/Halil Ramazan/Desktop/mela/jpeg/train'
 for file in os.listdir(f):

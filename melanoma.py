@@ -32,3 +32,13 @@ class SEResnext50_32x4d(nn.Module):
             )
 
         self.l0 = nn.Linear(2048, 1)
+    def forward(self, image, targets):
+        batch_size, _, _, _ = image.shape
+        
+        x = self.base_model.features(image)
+        x = F.adaptive_avg_pool2d(x, 1).reshape(batch_size, -1)
+        
+        out = self.l0(x)
+        loss = nn.BCEWithLogitsLoss()(out, targets.view(-1, 1).type_as(x))
+
+        return out, loss

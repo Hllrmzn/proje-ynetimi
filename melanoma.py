@@ -42,3 +42,8 @@ class SEResnext50_32x4d(nn.Module):
         loss = nn.BCEWithLogitsLoss()(out, targets.view(-1, 1).type_as(x))
 
         return out, loss
+df = pd.read_csv("../input/siim-isic-melanoma-classification/train.csv")
+df["kfold"] = -1    
+df = df.sample(frac=1).reset_index(drop=True)
+y = df.target.values
+kf = model_selection.StratifiedKFold(n_splits=5)

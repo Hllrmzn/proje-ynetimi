@@ -27,7 +27,7 @@ class SEResnext50_32x4d(nn.Module):
         if pretrained is not None:
             self.base_model.load_state_dict(
                 torch.load(
-                    "../input/pretrained-model-weights-pytorch/se_resnext50_32x4d-a260b3a4.pth"/// resnext50 proje kaggle üzerinden çalıştırıldığı için path bu şekil
+                    "model yolu"/// resnext50 proje kaggle üzerinden çalıştırıldığı için path bu şekil
                 )
             )
 
@@ -42,8 +42,97 @@ class SEResnext50_32x4d(nn.Module):
         loss = nn.BCEWithLogitsLoss()(out, targets.view(-1, 1).type_as(x))
 
         return out, loss
-df = pd.read_csv("../input/siim-isic-melanoma-classification/train.csv")
+df = pd.read_csv("csv dosya yolu")
 df["kfold"] = -1    
 df = df.sample(frac=1).reset_index(drop=True)
 y = df.target.values
 kf = model_selection.StratifiedKFold(n_splits=5)
+
+for f, (t_, v_) in enumerate(kf.split(X=df, y=y)):
+    df.loc[v_, 'kfold'] = f
+
+df.to_csv("train_folds.csv", index=False)
+def train(fold):
+    training_data_path = "dosya yolu"
+    df = pd.read_csv("csv dosya yolu")
+    device = "cuda"
+    epochs = 50
+    train_bs = 32
+    valid_bs = 16
+
+    df_train = df[df.kfold != fold].reset_index(drop=True)
+    df_valid = df[df.kfold == fold].reset_index(drop=True)
+
+    model = SEResnext50_32x4d(pretrained="imagenet")
+    model.to(device)
+
+    mean = (0.485, 0.456, 0.406)
+    std = (0.229, 0.224, 0.225)
+    train_aug = albumentations.Compose(
+        [
+            albumentations.Normalize(mean, std, max_pixel_value=255.0, always_apply=True),
+            albumentations.ShiftScaleRotate(shift_limit=0.0625, scale_limit=0.1, rotate_limit=15),
+            albumentations.Flip(p=0.5)
+        ]
+    )
+
+    valid_aug = albumentations.Compose(
+        [
+            albumentations.Normalize(mean, std, max_pixel_value=255.0, always_apply=True)
+        ]
+    )
+
+    train_images = df_train.image_name.values.tolist()
+    train_images = [os.path.join(training_data_path, i + ".png") for i in train_images]
+    train_targets = df_train.target.values
+
+    valid_images = df_valid.image_name.values.tolist()
+    valid_images = [os.path.join(training_data_path, i + ".png") for i in valid_images]
+    valid_targets = df_valid.target.values
+
+    train_dataset = classification(
+        image_paths=train_images,
+        targets=train_targets,
+        resize=None,
+        augmentations=train_aug,
+    )
+
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset, batch_size=train_bs, shuffle=True, num_workers=4
+    )
+
+    valid_dataset = classification(
+        image_paths=valid_images,
+        targets=valid_targets,
+        resize=None,
+        augmentations=valid_aug,
+    )
+
+    valid_loader = torch.utils.data.DataLoader(
+        valid_dataset, batch_size=valid_bs, shuffle=False, num_workers=4
+    )
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer,
+        patience=3,
+        threshold=0.001,
+        mode="max"
+    )
+
+    es = EarlyStopping(patience=5, mode="max")
+
+    for epoch in range(epochs):
+        train_loss = Engine.train(train_loader, model, optimizer, device=device)
+        predictions, valid_loss = Engine.evaluate(
+            valid_loader, model, device=device
+        )
+        predictions = np.vstack((predictions)).ravel()
+        auc = metrics.roc_auc_score(valid_targets, predictions)
+        print(f"Epoch = {epoch}, AUC = {auc}")
+        scheduler.step(auc)
+
+        es(auc, model, model_path=f"model_fold_{fold}.bin")
+        if es.early_stop:
+            print("Early stopping")
+            break

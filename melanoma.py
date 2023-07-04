@@ -136,3 +136,40 @@ def train(fold):
         if es.early_stop:
             print("Early stopping")
             break
+def predict(fold):
+    test_data_path = "../input/siic-isic-224x224-images/test/"
+    df = pd.read_csv("../input/siim-isic-melanoma-classification/test.csv")
+    device = "cuda"
+    model_path=f"model_fold_{fold}.bin"
+
+    mean = (0.485, 0.456, 0.406)
+    std = (0.229, 0.224, 0.225)
+    aug = albumentations.Compose(
+        [
+            albumentations.Normalize(mean, std, max_pixel_value=255.0, always_apply=True)
+        ]
+    )
+
+    images = df.image_name.values.tolist()
+    images = [os.path.join(test_data_path, i + ".png") for i in images]
+    targets = np.zeros(len(images))
+
+    test_dataset = classification(
+        image_paths=images,
+        targets=targets,
+        resize=None,
+        augmentations=aug,
+    )
+
+    test_loader = torch.utils.data.DataLoader(
+        test_dataset, batch_size=16, shuffle=False, num_workers=4
+    )
+
+    model = SEResnext50_32x4d(pretrained=None)
+    model.load_state_dict(torch.load(model_path))
+    model.to(device)
+
+    predictions = Engine.predict(test_loader, model, device=device)
+    predictions = np.vstack((predictions)).ravel()
+
+    return predictions
